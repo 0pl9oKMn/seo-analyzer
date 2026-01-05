@@ -1,0 +1,88 @@
+package.json{
+  "name": "seo-analyzer",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
+index.jsimport express from "express";
+import fetch from "node-fetch";
+
+const app = express();
+app.use(express.json());
+app.use(express.static("./"));
+
+app.post("/analyze", async (req, res) => {
+  const text = req.body.text;
+  const apiKey = process.env.OPENAI_KEY;
+
+  const prompt = `
+  Analise este conteúdo para SEO semântico e ranqueamento no Google.
+  Retorne em JSON:
+  {
+    "keyword_top": "keyword mais ranqueada do tema",
+    "terms_missing": ["termos semânticos faltando"],
+    "density": "densidade ideal da keyword no texto",
+    "score": "score realista de 0 a 100",
+    "recommendations": ["melhorias On-Page"],
+    "search_intent": "intenção de busca do conteúdo"
+  }
+
+  Conteúdo:
+  ${text}
+  `;
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + apiKey
+    },
+    body: JSON.stringify({
+      model: "gpt-5.2",
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+
+  const data = await response.json();
+  const result = JSON.parse(data.choices[0].message.content);
+  res.json(result);
+});
+
+export default app;
+index.html<textarea id="textInput" placeholder="Cole seu artigo aqui..."></textarea>
+<button onclick="analyze()">Analisar SEO</button>
+<div id="result"></div>
+
+<script>
+async function analyze() {
+  const text = document.getElementById("textInput").value;
+  const response = await fetch("/analyze", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ text })
+  });
+  const json = await response.json();
+  document.getElementById("result").innerHTML = `
+    <h3>Keyword top:</h3> <b id="kw">${json.keyword_top}</b>
+    <button onclick="copyKW()">Copiar</button>
+    <h3>Intenção de busca:</h3> ${json.search_intent}
+    <h3>Termos faltando:</h3> ${json.terms_missing.join(", ")}
+    <h3>Densidade ideal:</h3> ${json.density}
+    <h3>Score:</h3> ${json.score}
+    <h3>Recomendações:</h3>
+    <ul>${json.recommendations.map(r => "<li>"+r+"</li>").join("")}</ul>
+  `;
+}
+function copyKW() {
+  const kw = document.getElementById("kw").innerText;
+  navigator.clipboard.writeText(kw);
+  alert("Keyword copiada!");
+}
+</script>
+
+<style>
+textarea{width:100%;height:160px;padding:12px;border-radius:12px;border:1px solid #ddd;}
+button{margin-top:10px;padding:12px 18px;border-radius:10px;border:none;cursor:pointer;}
+</style>
